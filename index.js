@@ -245,17 +245,17 @@ const commands = [
         .setDescription("Order details, example: Mythic I -> Masters I")
         .setRequired(true)
     )
-    .addAttachmentOption(option =>
+    .addStringOption(option =>
       option
-        .setName("image")
-        .setDescription("Upload the image for the embed")
+        .setName("image_url")
+        .setDescription("Direct image URL")
         .setRequired(true)
     )
     .addChannelOption(option =>
       option
         .setName("channel")
         .setDescription("Channel the button should link to")
-        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+        .addChannelTypes(ChannelType.GuildText)
         .setRequired(true)
     )
     .addStringOption(option =>
@@ -434,7 +434,7 @@ client.on("interactionCreate", async interaction => {
         const amount = interaction.options.getString("amount");
         const orderType = interaction.options.getString("order_type");
         const orderDetails = interaction.options.getString("order_details");
-        const image = interaction.options.getAttachment("image");
+        const imageUrl = interaction.options.getString("image_url");
         const channel = interaction.options.getChannel("channel");
         const buttonText = interaction.options.getString("button_text");
 
@@ -467,7 +467,7 @@ client.on("interactionCreate", async interaction => {
               inline: false
             }
           )
-          .setImage(image.url)
+          .setImage(imageUrl)
           .setFooter({
             text: `Powered by ${interaction.guild.name} • ${interaction.guild.id}`
           });
