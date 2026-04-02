@@ -216,7 +216,54 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("questions")
-    .setDescription("Post the questions panel")
+    .setDescription("Post the questions panel"),
+
+  new SlashCommandBuilder()
+    .setName("order")
+    .setDescription("Create a custom order embed")
+    .addStringOption(option =>
+      option
+        .setName("buyer")
+        .setDescription("Buyer name")
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName("amount")
+        .setDescription("Order amount, example: 44.99")
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName("order_type")
+        .setDescription("Order type")
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName("order_details")
+        .setDescription("Order details, example: Mythic I -> Masters I")
+        .setRequired(true)
+    )
+    .addAttachmentOption(option =>
+      option
+        .setName("image")
+        .setDescription("Upload the image for the embed")
+        .setRequired(true)
+    )
+    .addChannelOption(option =>
+      option
+        .setName("channel")
+        .setDescription("Channel the button should link to")
+        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option
+        .setName("button_text")
+        .setDescription("Text on the button")
+        .setRequired(true)
+    )
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -379,6 +426,63 @@ client.on("interactionCreate", async interaction => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "ping") {
         await interaction.reply("pong");
+        return;
+      }
+
+      if (interaction.commandName === "order") {
+        const buyer = interaction.options.getString("buyer");
+        const amount = interaction.options.getString("amount");
+        const orderType = interaction.options.getString("order_type");
+        const orderDetails = interaction.options.getString("order_details");
+        const image = interaction.options.getAttachment("image");
+        const channel = interaction.options.getChannel("channel");
+        const buttonText = interaction.options.getString("button_text");
+
+        const channelUrl = `https://discord.com/channels/${interaction.guild.id}/${channel.id}`;
+
+        const embed = new EmbedBuilder()
+          .setColor(0x8b2cff)
+          .setAuthor({
+            name: "RANKED ORDER 🚀"
+          })
+          .addFields(
+            {
+              name: "Buyer 🧑‍💻",
+              value: `↳ \`${buyer}\``,
+              inline: false
+            },
+            {
+              name: "Order Amount (€) 💶",
+              value: `↳ \`€${amount}\``,
+              inline: false
+            },
+            {
+              name: "Order Type 🚀",
+              value: `↳ \`${orderType}\``,
+              inline: false
+            },
+            {
+              name: "Order Details 🟣",
+              value: `↳ \`${orderDetails}\``,
+              inline: false
+            }
+          )
+          .setImage(image.url)
+          .setFooter({
+            text: `Powered by ${interaction.guild.name} • ${interaction.guild.id}`
+          });
+
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel(`👉 ${buttonText}`)
+            .setStyle(ButtonStyle.Link)
+            .setURL(channelUrl)
+        );
+
+        await interaction.reply({
+          embeds: [embed],
+          components: [row]
+        });
         return;
       }
 
