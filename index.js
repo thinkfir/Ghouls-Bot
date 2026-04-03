@@ -8,45 +8,31 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   ActionRowBuilder,
-  StringSelectMenuBuilder,
-  PermissionsBitField,
-  ChannelType,
+  ButtonBuilder,
+  ButtonStyle,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ButtonBuilder,
-  ButtonStyle
+  ChannelType
 } = require("discord.js");
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-const {
-  TOKEN,
-  CLIENT_ID,
-  GUILD_ID,
-  STAFF_ROLE_ID,
-  TICKET_CATEGORY_ID
-} = process.env;
+const { TOKEN, CLIENT_ID, GUILD_ID } = process.env;
 
 const commands = [
   new SlashCommandBuilder()
     .setName("order")
-    .setDescription("Create a custom order embed")
-    .addStringOption(o => o.setName("buyer").setDescription("Buyer").setRequired(true))
-    .addStringOption(o => o.setName("amount").setDescription("Amount").setRequired(true))
-    .addStringOption(o => o.setName("order_type").setDescription("Order Type").setRequired(true))
-    .addStringOption(o => o.setName("order_details").setDescription("Details").setRequired(true))
-    .addStringOption(o => o.setName("image_url").setDescription("Image URL").setRequired(true))
-    .addChannelOption(o =>
-      o.setName("channel")
-        .setDescription("Channel to link")
+    .setDescription("Create an order embed")
+    .addChannelOption(option =>
+      option.setName("channel")
+        .setDescription("Where to send the order")
         .addChannelTypes(ChannelType.GuildText)
         .setRequired(true)
     )
-    .addStringOption(o => o.setName("button_text").setDescription("Button text").setRequired(true))
-].map(c => c.toJSON());
+].map(cmd => cmd.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
@@ -62,58 +48,101 @@ client.once("clientReady", async () => {
 });
 
 client.on("interactionCreate", async interaction => {
-  if (!interaction.isChatInputCommand()) return;
 
-  if (interaction.commandName === "order") {
-    const buyer = interaction.options.getString("buyer");
-    const amount = interaction.options.getString("amount");
-    const orderType = interaction.options.getString("order_type");
-    const orderDetails = interaction.options.getString("order_details");
-    const imageUrl = interaction.options.getString("image_url");
-    const channel = interaction.options.getChannel("channel");
-    const buttonText = interaction.options.getString("button_text");
+  // STEP 1 → command triggers modal (hidden)
+  if (interaction.isChatInputCommand()) {
+    if (interaction.commandName === "order") {
 
-    const channelUrl = `https://discord.com/channels/${interaction.guild.id}/${channel.id}`;
+      const modal = new ModalBuilder()
+        .setCustomId(`order_modal_${interaction.options.getChannel("channel").id}`)
+        .setTitle("Create Order");
 
-    const embed = new EmbedBuilder()
-      .setColor(0x8b2cff)
-      .setAuthor({ name: "RANKED ORDER 🚀" })
-      .addFields(
-        {
-          name: "Buyer 🧑‍💻",
-          value: `↳ \`${buyer}\``
-        },
-        {
-          name: "Order Amount (€) 💶",
-          value: `↳ \`€${amount}\``
-        },
-        {
-          name: "Order Type 🚀",
-          value: `↳ \`${orderType}\``
-        },
-        {
-          name: "<:information_Orange:1349967200093601884> Order Details",
-          value: `↳ \`${orderDetails}\``
-        }
-      )
-      .setImage(imageUrl)
-      .setFooter({
-        text: `Powered by ${interaction.guild.name}`
+      modal.addComponents(
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("buyer")
+            .setLabel("Buyer")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("amount")
+            .setLabel("Amount (€)")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("type")
+            .setLabel("Order Type")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("details")
+            .setLabel("Order Details")
+            .setStyle(TextInputStyle.Paragraph)
+            .setRequired(true)
+        ),
+        new ActionRowBuilder().addComponents(
+          new TextInputBuilder()
+            .setCustomId("image")
+            .setLabel("Image URL")
+            .setStyle(TextInputStyle.Short)
+            .setRequired(true)
+        )
+      );
+
+      await interaction.showModal(modal);
+    }
+  }
+
+  // STEP 2 → modal submit → send public embed
+  if (interaction.isModalSubmit()) {
+
+    if (interaction.customId.startsWith("order_modal_")) {
+
+      const channelId = interaction.customId.split("_")[2];
+      const channel = interaction.guild.channels.cache.get(channelId);
+
+      const buyer = interaction.fields.getTextInputValue("buyer");
+      const amount = interaction.fields.getTextInputValue("amount");
+      const type = interaction.fields.getTextInputValue("type");
+      const details = interaction.fields.getTextInputValue("details");
+      const image = interaction.fields.getTextInputValue("image");
+
+      const embed = new EmbedBuilder()
+        .setColor(0x8b2cff)
+        .setAuthor({ name: "RANKED ORDER 🚀" })
+        .addFields(
+          { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
+          { name: "Order Amount (€) 💶", value: `↳ \`€${amount}\`` },
+          { name: "Order Type 🚀", value: `↳ \`${type}\`` },
+          { name: ":info: Order Details", value: `↳ \`${details}\`` }
+        )
+        .setImage(image)
+        .setFooter({ text: `Powered by ${interaction.guild.name}` });
+
+      const row = new ActionRowBuilder().addComponents(
+        new ButtonBuilder()
+          .setLabel("👉 Open Ticket")
+          .setStyle(ButtonStyle.Link)
+          .setURL(`https://discord.com/channels/${interaction.guild.id}/${channel.id}`)
+      );
+
+      await channel.send({
+        embeds: [embed],
+        components: [row]
       });
 
-    const row = new ActionRowBuilder().addComponents(
-      new ButtonBuilder()
-        .setLabel(`👉 ${buttonText}`)
-        .setStyle(ButtonStyle.Link)
-        .setURL(channelUrl)
-    );
-
-    // 👇 THIS is the key change
-    await interaction.deferReply();
-    await interaction.editReply({
-      embeds: [embed],
-      components: [row]
-    });
+      // reply ONLY to user (hidden)
+      await interaction.reply({
+        content: "✅ Order sent!",
+        ephemeral: true
+      });
+    }
   }
 });
 
