@@ -218,9 +218,19 @@ const commands = [
     .setName("questions")
     .setDescription("Post the questions panel"),
 
-  new SlashCommandBuilder()
+ new SlashCommandBuilder()
   .setName("order")
-  .setDescription("Create an order via modal"),
+  .setDescription("Create an order via modal")
+  .addChannelOption(option =>
+    option.setName("channel")
+      .setDescription("Channel to link to")
+      .setRequired(true)
+  )
+  .addStringOption(option =>
+    option.setName("button_text")
+      .setDescription("Text for the button")
+      .setRequired(true)
+  )
   
 ].map(command => command.toJSON());
 
@@ -383,7 +393,17 @@ client.on("interactionCreate", async interaction => {
   try {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "order") {
-  const modal = new ModalBuilder()
+
+        const channel = interaction.options.getChannel("channel");
+const buttonText = interaction.options.getString("button_text");
+
+client.orderData = client.orderData || {};
+client.orderData[interaction.user.id] = {
+  channelId: channel.id,
+  buttonText
+};
+    
+        const modal = new ModalBuilder()
     .setCustomId("order_modal") // keep SHORT (fixes your previous error)
     .setTitle("Create Order");
 
@@ -423,13 +443,7 @@ client.on("interactionCreate", async interaction => {
         .setStyle(TextInputStyle.Short)
         .setRequired(true)
     ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("button_text")
-        .setLabel("Button Text")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    )
+   
   );
 
   await interaction.showModal(modal);
@@ -600,10 +614,19 @@ client.on("interactionCreate", async interaction => {
   const type = interaction.fields.getTextInputValue("type");
   const details = interaction.fields.getTextInputValue("details");
   const image = interaction.fields.getTextInputValue("image");
-  const buttonText = interaction.fields.getTextInputValue("button_text");
+        const saved = client.orderData?.[interaction.user.id];
 
-  const channelUrl = `https://discord.com/channels/${interaction.guild.id}/${interaction.channel.id}`;
+if (!saved) {
+  await interaction.reply({
+    content: "Order expired. Run /order again.",
+    ephemeral: true
+  });
+  return;
+}
 
+const { channelId, buttonText } = saved;
+
+  const channelUrl = `https://discord.com/channels/${interaction.guild.id}/${channelId}`;
   const embed = new EmbedBuilder()
     .setColor(0x8b2cff)
     .setAuthor({ name: "ORDER 🚀" })
