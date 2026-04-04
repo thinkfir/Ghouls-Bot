@@ -218,19 +218,19 @@ const commands = [
     .setName("questions")
     .setDescription("Post the questions panel"),
 
- new SlashCommandBuilder()
-  .setName("order")
-  .setDescription("Create an order via modal")
-  .addChannelOption(option =>
-    option.setName("channel")
-      .setDescription("Channel to link to")
-      .setRequired(true)
-  )
-  .addStringOption(option =>
-    option.setName("button_text")
-      .setDescription("Text for the button")
-      .setRequired(true)
-  )
+  new SlashCommandBuilder()
+    .setName("order")
+    .setDescription("Create an order via modal")
+    .addChannelOption(option =>
+      option.setName("channel")
+        .setDescription("Channel to link to")
+        .setRequired(true)
+    )
+    .addStringOption(option =>
+      option.setName("button_text")
+        .setDescription("Text for the button")
+        .setRequired(true)
+    )
   
 ].map(command => command.toJSON());
 
@@ -395,60 +395,61 @@ client.on("interactionCreate", async interaction => {
       if (interaction.commandName === "order") {
 
         const channel = interaction.options.getChannel("channel");
-const buttonText = interaction.options.getString("button_text");
+        const buttonText = interaction.options.getString("button_text");
 
-client.orderData = client.orderData || {};
-client.orderData[interaction.user.id] = {
-  channelId: channel.id,
-  buttonText
-};
+        client.orderData = client.orderData || {};
+        client.orderData[interaction.user.id] = {
+          channelId: channel.id,
+          buttonText
+        };
     
         const modal = new ModalBuilder()
-    .setCustomId("order_modal") // keep SHORT (fixes your previous error)
-    .setTitle("Create Order");
+          .setCustomId("order_modal") // keep SHORT (fixes your previous error)
+          .setTitle("Create Order");
 
-  modal.addComponents(
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("buyer")
-        .setLabel("Buyer")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("amount")
-        .setLabel("Amount (€)")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("type")
-        .setLabel("Order Type")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("details")
-        .setLabel("Order Details")
-        .setStyle(TextInputStyle.Paragraph)
-        .setRequired(true)
-    ),
-    new ActionRowBuilder().addComponents(
-      new TextInputBuilder()
-        .setCustomId("image")
-        .setLabel("Image URL")
-        .setStyle(TextInputStyle.Short)
-        .setRequired(true)
-    ),
-   
-  );
+        modal.addComponents(
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("buyer")
+              .setLabel("Buyer")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("amount")
+              .setLabel("Amount (€)")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("type")
+              .setLabel("Order Type")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("details")
+              .setLabel("Order Details")
+              .setStyle(TextInputStyle.Paragraph)
+              .setRequired(true)
+          ),
+          new ActionRowBuilder().addComponents(
+            new TextInputBuilder()
+              .setCustomId("image")
+              .setLabel("Image URL")
+              .setStyle(TextInputStyle.Short)
+              .setRequired(true)
+          ),
+          
+        );
 
-  await interaction.showModal(modal);
-  return;
-}
+        await interaction.showModal(modal);
+        return;
+      }
+      
       if (interaction.commandName === "ping") {
         await interaction.reply("pong");
         return;
@@ -457,8 +458,14 @@ client.orderData[interaction.user.id] = {
       const panel = getPanelByCommand(interaction.commandName);
       if (!panel) return;
 
-      await interaction.reply(buildPanel(panel));
+      // ---- FIX APPLIED HERE ----
+      // Send the embed directly to the channel so the bot name appears without the "User used /command" header
+      await interaction.channel.send(buildPanel(panel));
+      
+      // Acknowledge the command silently so Discord doesn't return an "interaction failed" error
+      await interaction.reply({ content: `${panel.title} panel posted successfully!`, ephemeral: true });
       return;
+      // --------------------------
     }
 
     if (interaction.isStringSelectMenu()) {
@@ -609,55 +616,56 @@ client.orderData[interaction.user.id] = {
     if (interaction.isModalSubmit()) {
 
       if (interaction.customId === "order_modal") {
-  const buyer = interaction.fields.getTextInputValue("buyer");
-  const amount = interaction.fields.getTextInputValue("amount");
-  const type = interaction.fields.getTextInputValue("type");
-  const details = interaction.fields.getTextInputValue("details");
-  const image = interaction.fields.getTextInputValue("image");
+        const buyer = interaction.fields.getTextInputValue("buyer");
+        const amount = interaction.fields.getTextInputValue("amount");
+        const type = interaction.fields.getTextInputValue("type");
+        const details = interaction.fields.getTextInputValue("details");
+        const image = interaction.fields.getTextInputValue("image");
         const saved = client.orderData?.[interaction.user.id];
 
-if (!saved) {
-  await interaction.reply({
-    content: "Order expired. Run /order again.",
-    ephemeral: true
-  });
-  return;
-}
+        if (!saved) {
+          await interaction.reply({
+            content: "Order expired. Run /order again.",
+            ephemeral: true
+          });
+          return;
+        }
 
-const { channelId, buttonText } = saved;
+        const { channelId, buttonText } = saved;
 
-  const channelUrl = `https://discord.com/channels/${interaction.guild.id}/${channelId}`;
-  const embed = new EmbedBuilder()
-    .setColor(0x8b2cff)
-    .setAuthor({ name: "ORDER 🚀" })
-    .addFields(
-      { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
-      { name: "Amount 💶", value: `↳ \`€${amount}\`` },
-      { name: "Type 🚀", value: `↳ \`${type}\`` },
-      { name: "Details ℹ️", value: `↳ \`${details}\`` }
-    )
-    .setImage(image)
-    .setFooter({ text: `Powered by ${interaction.guild.name}` });
+        const channelUrl = `https://discord.com/channels/${interaction.guild.id}/${channelId}`;
+        const embed = new EmbedBuilder()
+          .setColor(0x8b2cff)
+          .setAuthor({ name: "ORDER 🚀" })
+          .addFields(
+            { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
+            { name: "Amount 💶", value: `↳ \`€${amount}\`` },
+            { name: "Type 🚀", value: `↳ \`${type}\`` },
+            { name: "Details ℹ️", value: `↳ \`${details}\`` }
+          )
+          .setImage(image)
+          .setFooter({ text: `Powered by ${interaction.guild.name}` });
 
-  const row = new ActionRowBuilder().addComponents(
-    new ButtonBuilder()
-      .setLabel(`👉 ${buttonText}`)
-      .setStyle(ButtonStyle.Link)
-      .setURL(channelUrl)
-  );
+        const row = new ActionRowBuilder().addComponents(
+          new ButtonBuilder()
+            .setLabel(`👉 ${buttonText}`)
+            .setStyle(ButtonStyle.Link)
+            .setURL(channelUrl)
+        );
 
- await interaction.reply({
-  content: "Order sent!",
-  ephemeral: true
-});
+        await interaction.reply({
+          content: "Order sent!",
+          ephemeral: true
+        });
 
-await interaction.channel.send({
-  embeds: [embed],
-  components: [row]
-});
+        await interaction.channel.send({
+          embeds: [embed],
+          components: [row]
+        });
 
-  return;
-}
+        return;
+      }
+      
       if (interaction.customId.startsWith("ranked_custom_")) {
         const currentRank = interaction.fields.getTextInputValue("current_rank");
         const desiredRank = interaction.fields.getTextInputValue("desired_rank");
