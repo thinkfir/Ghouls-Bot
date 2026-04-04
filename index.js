@@ -22,8 +22,6 @@ const client = new Client({
 
 const { TOKEN, CLIENT_ID, GUILD_ID } = process.env;
 
-let tempData = {};
-
 const commands = [
   new SlashCommandBuilder()
     .setName("order")
@@ -66,14 +64,13 @@ client.on("interactionCreate", async interaction => {
     if (interaction.isChatInputCommand()) {
       if (interaction.commandName === "order") {
 
-        tempData[interaction.user.id] = {
-          channelId: interaction.options.getChannel("channel").id,
-          image: interaction.options.getString("image"),
-          type: interaction.options.getString("order_type")
-        };
+        const channelId = interaction.options.getChannel("channel").id;
+        const image = interaction.options.getString("image");
+        const type = interaction.options.getString("order_type");
 
+        // 👇 embed ALL data safely into modal ID
         const modal = new ModalBuilder()
-          .setCustomId("order_modal")
+          .setCustomId(`order_${channelId}_${encodeURIComponent(image)}_${encodeURIComponent(type)}`)
           .setTitle("Create Order");
 
         modal.addComponents(
@@ -113,23 +110,21 @@ client.on("interactionCreate", async interaction => {
 
     // STEP 2 → MODAL SUBMIT
     if (interaction.isModalSubmit()) {
-      if (interaction.customId === "order_modal") {
 
-        const data = tempData[interaction.user.id];
+      if (interaction.customId.startsWith("order_")) {
 
-        if (!data) {
-          return await interaction.reply({
-            content: "❌ Session expired. Try again.",
-            ephemeral: true
-          });
-        }
+        const parts = interaction.customId.split("_");
 
-        const channel = interaction.guild.channels.cache.get(data.channelId);
+        const channelId = parts[1];
+        const image = decodeURIComponent(parts[2]);
+        const type = decodeURIComponent(parts[3]);
+
+        const channel = interaction.guild.channels.cache.get(channelId);
 
         if (!channel) {
           return await interaction.reply({
-            content: "❌ Cannot access that channel.",
-            ephemeral: true
+            content: "❌ Invalid channel.",
+            flags: 64
           });
         }
 
@@ -144,10 +139,10 @@ client.on("interactionCreate", async interaction => {
           .addFields(
             { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
             { name: "Order Amount (€) 💶", value: `↳ \`€${amount}\`` },
-            { name: "Order Type 🚀", value: `↳ \`${data.type}\`` },
+            { name: "Order Type 🚀", value: `↳ \`${type}\`` },
             { name: "Order Details ℹ️", value: `↳ \`${details}\`` }
           )
-          .setImage(data.image)
+          .setImage(image)
           .setFooter({ text: `Powered by ${interaction.guild.name}` });
 
         const row = new ActionRowBuilder().addComponents(
@@ -162,22 +157,20 @@ client.on("interactionCreate", async interaction => {
           components: [row]
         });
 
-        delete tempData[interaction.user.id];
-
         await interaction.reply({
           content: "✅ Order sent!",
-          ephemeral: true
+          flags: 64
         });
       }
     }
 
   } catch (err) {
-    console.error(err);
+    console.error("ERROR:", err);
 
     if (!interaction.replied) {
       await interaction.reply({
         content: "Something went wrong.",
-        ephemeral: true
+        flags: 64
       }).catch(() => {});
     }
   }
