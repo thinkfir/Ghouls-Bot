@@ -31,12 +31,19 @@ const {
 } = process.env;
 
 /* =========================
-   YOUR PANELS (UNCHANGED)
+   CACHE (FIXES MODAL ISSUE)
 ========================= */
+const orderCache = new Map();
 
-const PANELS = { /* KEEP YOUR EXISTING PANELS EXACTLY SAME */ };
+/* =========================
+   PANELS (UNCHANGED)
+========================= */
+// KEEP YOUR EXACT PANELS HERE (I DID NOT MODIFY THEM)
+const PANELS = /* PASTE YOUR ORIGINAL PANELS OBJECT HERE */ {};
 
-// keep your OFFER_LOOKUP logic
+/* =========================
+   OFFER LOOKUP
+========================= */
 const OFFER_LOOKUP = {};
 for (const panelKey of Object.keys(PANELS)) {
   const panel = PANELS[panelKey];
@@ -56,55 +63,36 @@ const commands = [
     .setName("ping")
     .setDescription("Replies with pong"),
 
-  new SlashCommandBuilder()
-    .setName("prestige")
-    .setDescription("Post the prestige panel"),
+  new SlashCommandBuilder().setName("prestige").setDescription("Post the prestige panel"),
+  new SlashCommandBuilder().setName("winstreaks").setDescription("Post the winstreaks panel"),
+  new SlashCommandBuilder().setName("trophies").setDescription("Post the trophies panel"),
+  new SlashCommandBuilder().setName("ranked").setDescription("Post the ranked panel"),
+  new SlashCommandBuilder().setName("questions").setDescription("Post the questions panel"),
 
-  new SlashCommandBuilder()
-    .setName("winstreaks")
-    .setDescription("Post the winstreaks panel"),
-
-  new SlashCommandBuilder()
-    .setName("trophies")
-    .setDescription("Post the trophies panel"),
-
-  new SlashCommandBuilder()
-    .setName("ranked")
-    .setDescription("Post the ranked panel"),
-
-  new SlashCommandBuilder()
-    .setName("questions")
-    .setDescription("Post the questions panel"),
-
-  // ✅ NEW ORDER SYSTEM (FIXED)
+  // ✅ FIXED ORDER COMMAND
   new SlashCommandBuilder()
     .setName("order")
     .setDescription("Create a custom order embed")
-    .addStringOption(option =>
-      option.setName("order_type")
-        .setDescription("Order type")
-        .setRequired(true)
+    .addStringOption(o =>
+      o.setName("order_type").setDescription("Order type").setRequired(true)
     )
-    .addStringOption(option =>
-      option.setName("image")
-        .setDescription("Image URL")
-        .setRequired(true)
+    .addStringOption(o =>
+      o.setName("image").setDescription("Image URL").setRequired(true)
     )
-    .addChannelOption(option =>
-      option.setName("channel")
+    .addChannelOption(o =>
+      o.setName("channel")
         .setDescription("Channel button links to")
         .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         .setRequired(true)
     )
 
-].map(command => command.toJSON());
+].map(c => c.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
 
 /* =========================
-   PANEL BUILDERS (UNCHANGED)
+   PANEL BUILDER
 ========================= */
-
 function buildPanel(panel) {
   const embed = new EmbedBuilder()
     .setTitle(panel.title)
@@ -118,10 +106,10 @@ function buildPanel(panel) {
     .setCustomId(panel.customId)
     .setPlaceholder("Choose an offer...")
     .addOptions(
-      panel.options.map(option => ({
-        label: option.label,
-        description: option.description,
-        value: option.value
+      panel.options.map(o => ({
+        label: o.label,
+        description: o.description,
+        value: o.value
       }))
     );
 
@@ -131,14 +119,13 @@ function buildPanel(panel) {
   };
 }
 
-function getPanelByCommand(commandName) {
-  return PANELS[commandName] || null;
+function getPanelByCommand(name) {
+  return PANELS[name] || null;
 }
 
 /* =========================
    READY
 ========================= */
-
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
 
@@ -153,11 +140,10 @@ client.once("clientReady", async () => {
 /* =========================
    INTERACTIONS
 ========================= */
-
 client.on("interactionCreate", async interaction => {
   try {
 
-    /* ===== COMMANDS ===== */
+    /* ===== SLASH COMMANDS ===== */
     if (interaction.isChatInputCommand()) {
 
       if (interaction.commandName === "ping") {
@@ -165,15 +151,22 @@ client.on("interactionCreate", async interaction => {
         return;
       }
 
-      // ✅ ORDER COMMAND → SHOW MODAL
+      // ✅ ORDER → SHOW MODAL
       if (interaction.commandName === "order") {
 
         const orderType = interaction.options.getString("order_type");
         const image = interaction.options.getString("image");
         const channel = interaction.options.getChannel("channel");
 
+        // store safely
+        orderCache.set(interaction.user.id, {
+          orderType,
+          image,
+          channelId: channel.id
+        });
+
         const modal = new ModalBuilder()
-          .setCustomId(`order_${channel.id}_${encodeURIComponent(orderType)}_${encodeURIComponent(image)}`)
+          .setCustomId(`order_${interaction.user.id}`)
           .setTitle("Create Order");
 
         modal.addComponents(
@@ -221,16 +214,20 @@ client.on("interactionCreate", async interaction => {
     /* ===== MODALS ===== */
     if (interaction.isModalSubmit()) {
 
-      // ✅ ORDER MODAL SUBMIT
+      // ✅ ORDER MODAL
       if (interaction.customId.startsWith("order_")) {
 
-        const parts = interaction.customId.split("_");
+        const data = orderCache.get(interaction.user.id);
 
-        const channelId = parts[1];
-        const orderType = decodeURIComponent(parts[2]);
-        const imageUrl = decodeURIComponent(parts[3]);
+        if (!data) {
+          await interaction.reply({
+            content: "Session expired. Try again.",
+            ephemeral: true
+          });
+          return;
+        }
 
-        const channel = interaction.guild.channels.cache.get(channelId);
+        const channel = interaction.guild.channels.cache.get(data.channelId);
 
         if (!channel) {
           await interaction.reply({
@@ -251,13 +248,11 @@ client.on("interactionCreate", async interaction => {
           .addFields(
             { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
             { name: "Order Amount (€) 💶", value: `↳ \`€${amount}\`` },
-            { name: "Order Type 🚀", value: `↳ \`${orderType}\`` },
-            { name: "Order Details ℹ️", value: `↳ \`${details}\`` }
+            { name: "Order Type 🚀", value: `↳ \`${data.orderType}\`` },
+            { name: ":info: Order Details", value: `↳ \`${details}\`` }
           )
-          .setImage(imageUrl)
-          .setFooter({
-            text: `Powered by ${interaction.guild.name}`
-          });
+          .setImage(data.image)
+          .setFooter({ text: `Powered by ${interaction.guild.name}` });
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
@@ -271,6 +266,8 @@ client.on("interactionCreate", async interaction => {
           components: [row]
         });
 
+        orderCache.delete(interaction.user.id);
+
         await interaction.reply({
           content: "✅ Order sent!",
           ephemeral: true
@@ -278,10 +275,20 @@ client.on("interactionCreate", async interaction => {
 
         return;
       }
+
+      // 🔹 KEEP YOUR EXISTING MODALS BELOW (UNCHANGED)
     }
 
-  } catch (error) {
-    console.error("ERROR:", error);
+    /* ===== BUTTONS ===== */
+    if (interaction.isButton()) {
+      if (interaction.customId === "close_ticket") {
+        await interaction.reply({ content: "Closing...", ephemeral: true });
+        setTimeout(() => interaction.channel.delete().catch(() => {}), 2000);
+      }
+    }
+
+  } catch (err) {
+    console.error("ERROR:", err);
 
     if (!interaction.replied) {
       await interaction.reply({
