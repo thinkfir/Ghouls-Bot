@@ -120,7 +120,7 @@ client.on("interactionCreate", async interaction => {
           { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
           { name: "Order Amount (€) 💶", value: `↳ \`€${amount}\`` },
           { name: "Order Type 🚀", value: `↳ \`${type}\`` },
-          { name: ":info: Order Details", value: `↳ \`${details}\`` }
+          { name: "Order Details ℹ️", value: `↳ \`${details}\`` }
         )
         .setImage(image)
         .setFooter({ text: `Powered by ${interaction.guild.name}` });
