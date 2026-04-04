@@ -35,7 +35,7 @@ const PANELS = {
     type: "select",
     title: "Prestige",
     description: "Choose the offer that you want below",
-    image: "https://media.discordapp.net/attachments/1483334076919316541/1483978475433099431/content.png?ex=69bc8e27&is=69bb3ca7&hm=71db2a9d75beabd60ef20c465f4d3d1c84b6096187394a02d9e68312eb3c17af&=&format=webp&quality=lossless&width=1322&height=881",
+    image: "https://cdn.discordapp.com/attachments/1484258863162064916/1490054631668191404/image.png?ex=69d2a904&is=69d15784&hm=61b8690ce9cc9e3038cbf9313af8d5fd0bc816ab7f07c84f4a7b564f51239ba4&",
     footer: "BS Ghouls © 2025 - All rights reserved.",
     customId: "prestige_menu",
     options: [
