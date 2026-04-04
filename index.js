@@ -8,28 +8,81 @@ const {
   SlashCommandBuilder,
   EmbedBuilder,
   ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
+  StringSelectMenuBuilder,
+  PermissionsBitField,
+  ChannelType,
   ModalBuilder,
   TextInputBuilder,
   TextInputStyle,
-  ChannelType
+  ButtonBuilder,
+  ButtonStyle
 } = require("discord.js");
 
 const client = new Client({
   intents: [GatewayIntentBits.Guilds]
 });
 
-const { TOKEN, CLIENT_ID, GUILD_ID } = process.env;
+const {
+  TOKEN,
+  CLIENT_ID,
+  GUILD_ID,
+  STAFF_ROLE_ID,
+  TICKET_CATEGORY_ID
+} = process.env;
 
+/* =========================
+   YOUR PANELS (UNCHANGED)
+========================= */
+
+const PANELS = { /* KEEP YOUR EXISTING PANELS EXACTLY SAME */ };
+
+// keep your OFFER_LOOKUP logic
+const OFFER_LOOKUP = {};
+for (const panelKey of Object.keys(PANELS)) {
+  const panel = PANELS[panelKey];
+  if (panel.options) {
+    for (const option of panel.options) {
+      OFFER_LOOKUP[option.value] = option;
+    }
+  }
+}
+
+/* =========================
+   COMMANDS
+========================= */
 const commands = [
+
+  new SlashCommandBuilder()
+    .setName("ping")
+    .setDescription("Replies with pong"),
+
+  new SlashCommandBuilder()
+    .setName("prestige")
+    .setDescription("Post the prestige panel"),
+
+  new SlashCommandBuilder()
+    .setName("winstreaks")
+    .setDescription("Post the winstreaks panel"),
+
+  new SlashCommandBuilder()
+    .setName("trophies")
+    .setDescription("Post the trophies panel"),
+
+  new SlashCommandBuilder()
+    .setName("ranked")
+    .setDescription("Post the ranked panel"),
+
+  new SlashCommandBuilder()
+    .setName("questions")
+    .setDescription("Post the questions panel"),
+
+  // ✅ NEW ORDER SYSTEM (FIXED)
   new SlashCommandBuilder()
     .setName("order")
-    .setDescription("Create order")
-    .addChannelOption(option =>
-      option.setName("channel")
-        .setDescription("Where to send")
-        .addChannelTypes(ChannelType.GuildText)
+    .setDescription("Create a custom order embed")
+    .addStringOption(option =>
+      option.setName("order_type")
+        .setDescription("Order type")
         .setRequired(true)
     )
     .addStringOption(option =>
@@ -37,14 +90,54 @@ const commands = [
         .setDescription("Image URL")
         .setRequired(true)
     )
-    .addStringOption(option =>
-      option.setName("order_type")
-        .setDescription("Order type")
+    .addChannelOption(option =>
+      option.setName("channel")
+        .setDescription("Channel button links to")
+        .addChannelTypes(ChannelType.GuildText, ChannelType.GuildAnnouncement)
         .setRequired(true)
     )
-].map(cmd => cmd.toJSON());
+
+].map(command => command.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
+
+/* =========================
+   PANEL BUILDERS (UNCHANGED)
+========================= */
+
+function buildPanel(panel) {
+  const embed = new EmbedBuilder()
+    .setTitle(panel.title)
+    .setDescription(panel.description)
+    .setColor(0x2b2d31)
+    .setFooter({ text: panel.footer });
+
+  if (panel.image) embed.setImage(panel.image);
+
+  const menu = new StringSelectMenuBuilder()
+    .setCustomId(panel.customId)
+    .setPlaceholder("Choose an offer...")
+    .addOptions(
+      panel.options.map(option => ({
+        label: option.label,
+        description: option.description,
+        value: option.value
+      }))
+    );
+
+  return {
+    embeds: [embed],
+    components: [new ActionRowBuilder().addComponents(menu)]
+  };
+}
+
+function getPanelByCommand(commandName) {
+  return PANELS[commandName] || null;
+}
+
+/* =========================
+   READY
+========================= */
 
 client.once("clientReady", async () => {
   console.log(`Logged in as ${client.user.tag}`);
@@ -57,20 +150,30 @@ client.once("clientReady", async () => {
   console.log("Commands registered");
 });
 
+/* =========================
+   INTERACTIONS
+========================= */
+
 client.on("interactionCreate", async interaction => {
   try {
 
-    // STEP 1 → COMMAND
+    /* ===== COMMANDS ===== */
     if (interaction.isChatInputCommand()) {
+
+      if (interaction.commandName === "ping") {
+        await interaction.reply("pong");
+        return;
+      }
+
+      // ✅ ORDER COMMAND → SHOW MODAL
       if (interaction.commandName === "order") {
 
-        const channelId = interaction.options.getChannel("channel").id;
+        const orderType = interaction.options.getString("order_type");
         const image = interaction.options.getString("image");
-        const type = interaction.options.getString("order_type");
+        const channel = interaction.options.getChannel("channel");
 
-        // 👇 embed ALL data safely into modal ID
         const modal = new ModalBuilder()
-          .setCustomId(`order_${channelId}_${encodeURIComponent(image)}_${encodeURIComponent(type)}`)
+          .setCustomId(`order_${channel.id}_${encodeURIComponent(orderType)}_${encodeURIComponent(image)}`)
           .setTitle("Create Order");
 
         modal.addComponents(
@@ -105,27 +208,36 @@ client.on("interactionCreate", async interaction => {
         );
 
         await interaction.showModal(modal);
+        return;
+      }
+
+      const panel = getPanelByCommand(interaction.commandName);
+      if (panel) {
+        await interaction.reply(buildPanel(panel));
+        return;
       }
     }
 
-    // STEP 2 → MODAL SUBMIT
+    /* ===== MODALS ===== */
     if (interaction.isModalSubmit()) {
 
+      // ✅ ORDER MODAL SUBMIT
       if (interaction.customId.startsWith("order_")) {
 
         const parts = interaction.customId.split("_");
 
         const channelId = parts[1];
-        const image = decodeURIComponent(parts[2]);
-        const type = decodeURIComponent(parts[3]);
+        const orderType = decodeURIComponent(parts[2]);
+        const imageUrl = decodeURIComponent(parts[3]);
 
         const channel = interaction.guild.channels.cache.get(channelId);
 
         if (!channel) {
-          return await interaction.reply({
-            content: "❌ Invalid channel.",
-            flags: 64
+          await interaction.reply({
+            content: "Invalid channel.",
+            ephemeral: true
           });
+          return;
         }
 
         const buyer = interaction.fields.getTextInputValue("buyer");
@@ -139,11 +251,13 @@ client.on("interactionCreate", async interaction => {
           .addFields(
             { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
             { name: "Order Amount (€) 💶", value: `↳ \`€${amount}\`` },
-            { name: "Order Type 🚀", value: `↳ \`${type}\`` },
+            { name: "Order Type 🚀", value: `↳ \`${orderType}\`` },
             { name: "Order Details ℹ️", value: `↳ \`${details}\`` }
           )
-          .setImage(image)
-          .setFooter({ text: `Powered by ${interaction.guild.name}` });
+          .setImage(imageUrl)
+          .setFooter({
+            text: `Powered by ${interaction.guild.name}`
+          });
 
         const row = new ActionRowBuilder().addComponents(
           new ButtonBuilder()
@@ -159,18 +273,20 @@ client.on("interactionCreate", async interaction => {
 
         await interaction.reply({
           content: "✅ Order sent!",
-          flags: 64
+          ephemeral: true
         });
+
+        return;
       }
     }
 
-  } catch (err) {
-    console.error("ERROR:", err);
+  } catch (error) {
+    console.error("ERROR:", error);
 
     if (!interaction.replied) {
       await interaction.reply({
         content: "Something went wrong.",
-        flags: 64
+        ephemeral: true
       }).catch(() => {});
     }
   }
