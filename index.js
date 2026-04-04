@@ -634,7 +634,7 @@ const { channelId, buttonText } = saved;
       { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
       { name: "Amount 💶", value: `↳ \`€${amount}\`` },
       { name: "Type 🚀", value: `↳ \`${type}\`` },
-      { name: "Details 🟣", value: `↳ \`${details}\`` }
+      { name: "Details ℹ️", value: `↳ \`${details}\`` }
     )
     .setImage(image)
     .setFooter({ text: `Powered by ${interaction.guild.name}` });
@@ -646,10 +646,15 @@ const { channelId, buttonText } = saved;
       .setURL(channelUrl)
   );
 
-  await interaction.reply({
-    embeds: [embed],
-    components: [row]
-  });
+ await interaction.reply({
+  content: "Order sent!",
+  ephemeral: true
+});
+
+await interaction.channel.send({
+  embeds: [embed],
+  components: [row]
+});
 
   return;
 }
