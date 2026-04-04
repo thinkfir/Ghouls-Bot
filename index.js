@@ -216,7 +216,12 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("questions")
-    .setDescription("Post the questions panel")
+    .setDescription("Post the questions panel"),
+
+  new SlashCommandBuilder()
+  .setName("order")
+  .setDescription("Create an order via modal"),
+  
 ].map(command => command.toJSON());
 
 const rest = new REST({ version: "10" }).setToken(TOKEN);
@@ -377,6 +382,59 @@ client.once("clientReady", async () => {
 client.on("interactionCreate", async interaction => {
   try {
     if (interaction.isChatInputCommand()) {
+      if (interaction.commandName === "order") {
+  const modal = new ModalBuilder()
+    .setCustomId("order_modal") // keep SHORT (fixes your previous error)
+    .setTitle("Create Order");
+
+  modal.addComponents(
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("buyer")
+        .setLabel("Buyer")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("amount")
+        .setLabel("Amount (€)")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("type")
+        .setLabel("Order Type")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("details")
+        .setLabel("Order Details")
+        .setStyle(TextInputStyle.Paragraph)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("image")
+        .setLabel("Image URL")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    ),
+    new ActionRowBuilder().addComponents(
+      new TextInputBuilder()
+        .setCustomId("button_text")
+        .setLabel("Button Text")
+        .setStyle(TextInputStyle.Short)
+        .setRequired(true)
+    )
+  );
+
+  await interaction.showModal(modal);
+  return;
+}
       if (interaction.commandName === "ping") {
         await interaction.reply("pong");
         return;
@@ -535,6 +593,43 @@ client.on("interactionCreate", async interaction => {
     }
 
     if (interaction.isModalSubmit()) {
+
+      if (interaction.customId === "order_modal") {
+  const buyer = interaction.fields.getTextInputValue("buyer");
+  const amount = interaction.fields.getTextInputValue("amount");
+  const type = interaction.fields.getTextInputValue("type");
+  const details = interaction.fields.getTextInputValue("details");
+  const image = interaction.fields.getTextInputValue("image");
+  const buttonText = interaction.fields.getTextInputValue("button_text");
+
+  const channelUrl = `https://discord.com/channels/${interaction.guild.id}/${interaction.channel.id}`;
+
+  const embed = new EmbedBuilder()
+    .setColor(0x8b2cff)
+    .setAuthor({ name: "ORDER 🚀" })
+    .addFields(
+      { name: "Buyer 🧑‍💻", value: `↳ \`${buyer}\`` },
+      { name: "Amount 💶", value: `↳ \`€${amount}\`` },
+      { name: "Type 🚀", value: `↳ \`${type}\`` },
+      { name: "Details 🟣", value: `↳ \`${details}\`` }
+    )
+    .setImage(image)
+    .setFooter({ text: `Powered by ${interaction.guild.name}` });
+
+  const row = new ActionRowBuilder().addComponents(
+    new ButtonBuilder()
+      .setLabel(`👉 ${buttonText}`)
+      .setStyle(ButtonStyle.Link)
+      .setURL(channelUrl)
+  );
+
+  await interaction.reply({
+    embeds: [embed],
+    components: [row]
+  });
+
+  return;
+}
       if (interaction.customId.startsWith("ranked_custom_")) {
         const currentRank = interaction.fields.getTextInputValue("current_rank");
         const desiredRank = interaction.fields.getTextInputValue("desired_rank");
